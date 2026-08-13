@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# PyInstaller
+build/
+dist/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+
+# Local diagnostics and captures (not part of the product)
+check_elev.py
+check_elevated.ps1
+click_listen.ps1
+diag_*.ps1
+dump_ui.ps1
+shot.py
+keys_capture.txt
+test_out*.txt
+win_shot*.png

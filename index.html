@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>繁简转换</title>
+<script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.min.js"></script>
+<style>
+  body { font-family: system-ui, "Microsoft JhengHei", "PingFang TC", sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.3rem; }
+  textarea { width: 100%; height: 10rem; font-size: 1.1rem; box-sizing: border-box; padding: .5rem; }
+  output { display: block; margin-top: 1rem; min-height: 10rem; border: 1px solid #ccc; padding: .5rem; font-size: 1.1rem; white-space: pre-wrap; }
+  button { margin-top: .5rem; }
+</style>
+</head>
+<body>
+<h1>繁体 ↔ 简体</h1>
+<textarea id="in" placeholder="粘贴或输入中文…"></textarea>
+<button id="copy">复制结果</button>
+<output id="out"></output>
+<script>
+  const toSimp = OpenCC.Converter({ from: 'tw', to: 'cn' });
+  const toTrad = OpenCC.Converter({ from: 'cn', to: 'tw' });
+  const inp = document.getElementById('in');
+  const out = document.getElementById('out');
+  function flip(text) {
+    const simp = toSimp(text);
+    const trad = toTrad(text);
+    if (simp === text && trad === text) return text;
+    if (simp === text) return trad;
+    if (trad === text) return simp;
+    let ds = 0, dt = 0;
+    for (let i = 0; i < text.length; i++) {
+      if (i < simp.length && simp[i] !== text[i]) ds++;
+      if (i < trad.length && trad[i] !== text[i]) dt++;
+    }
+    return ds >= dt ? simp : trad;
+  }
+  inp.addEventListener('input', () => { out.textContent = flip(inp.value); });
+  document.getElementById('copy').addEventListener('click', () => navigator.clipboard.writeText(out.textContent));
+</script>
+</body>
+</html>
