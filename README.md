@@ -60,7 +60,8 @@ python -m PyInstaller --noconfirm Trad2Simp.spec
 ## 隐私与安全
 
 - 纯本地运行：不联网、无账号、无遥测。
-- 转换时短暂读写剪贴板（含原先内容），用完即恢复；日志只记长度与状态，不写选中正文。
+- 转换时短暂读写剪贴板（含原先**文本**内容），用完即恢复；若原先剪贴板是图片等非文本格式，转换后通常无法恢复。
+- 日志（`%APPDATA%\Trad2Simp\log.txt`）只记长度与状态，不写选中正文。
 - 使用 `RegisterHotKey` 与 `SendInput`，不是底层键盘钩子；以管理员运行的窗口需要本程序同样提权才能注入。
 
 ## License
@@ -73,6 +74,6 @@ MIT
 
 Windows tray app that flips selected Chinese between Traditional and Simplified with a global hotkey (default `Alt+\``). Download **Trad2Simp.exe** from [Releases](https://github.com/Ivan494/trad-simp/releases/latest). First close minimizes to the tray.
 
-Fully offline — no network, accounts, or telemetry. Clipboard is used only for the conversion round-trip; logs store lengths/status, not selected text.
+Fully offline — no network, accounts, or telemetry. Clipboard text is restored after conversion; non-text clipboard formats (e.g. images) generally cannot be restored. Logs store lengths/status, not selected text.
 
 See the Chinese sections above for usage, source build, and implementation notes.
