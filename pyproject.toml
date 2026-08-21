@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trad2simp"
+version = "1.0.1"
+description = "Windows tray app: flip selected Chinese between Traditional and Simplified with a global hotkey"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "Ivan494" }]
+keywords = ["chinese", "opencc", "traditional", "simplified", "hotkey", "windows"]
+dependencies = [
+  "opencc>=1.1.7",
+  "pystray>=0.19.5",
+  "Pillow>=10.0.0",
+]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Text Processing :: Linguistic",
+]
+
+[project.urls]
+Homepage = "https://github.com/Ivan494/trad-simp"
+Repository = "https://github.com/Ivan494/trad-simp"
+Issues = "https://github.com/Ivan494/trad-simp/issues"
+Release = "https://github.com/Ivan494/trad-simp/releases"
+
+[project.scripts]
+trad2simp = "trad2simp.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["trad2simp*"]

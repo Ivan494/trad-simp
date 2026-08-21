@@ -99,8 +99,9 @@ class App:
             if not self.listening:
                 continue
             try:
-                if self.apply_hotkey():
-                    log('watchdog: hotkey re-registered')
+                # force=True: RegisterHotKey can be lost while our handle
+                # still thinks the combo is live; a no-op check would miss it.
+                self.apply_hotkey(force=True)
             except Exception as ex:
                 log(f'watchdog: re-register failed: {ex}')
 
@@ -110,8 +111,11 @@ class App:
     def _wait_show_signal(self):
         if not instance.show_event:
             return
-        win32.kernel32.WaitForSingleObject(instance.show_event, 0xFFFFFFFF)
-        self.events.put(('show', None))
+        # Loop: each second-instance launch SetEvent's once; a single wait
+        # would leave later launches unable to raise the window.
+        while True:
+            win32.kernel32.WaitForSingleObject(instance.show_event, 0xFFFFFFFF)
+            self.events.put(('show', None))
 
     def poll_events(self):
         try:
@@ -187,7 +191,11 @@ class App:
                 self.hotkey_var.set(previous)
                 self.cfg['hotkey'] = previous
                 messagebox.showerror('无效快捷键', str(ex))
-                self.stop_listen()
+                try:
+                    self.apply_hotkey()
+                except Exception as ex2:
+                    log(f'restore previous hotkey failed: {ex2}')
+                    self.stop_listen()
                 return
         config.save_config(self.cfg)
         self.refresh_status()
@@ -225,10 +233,10 @@ class App:
         log(f'listening: {hotkey}')
         self.refresh_status()
 
-    def apply_hotkey(self):
+    def apply_hotkey(self, force=False):
         combo = self.hotkey_var.get().strip()
         mods, vk = hotkeys.hotkey_to_mods_vk(combo)
-        changed = self._hotkey_pump.register(mods, vk)
+        changed = self._hotkey_pump.register(mods, vk, force=force)
         self.hotkey_handle = combo
         return changed
 
@@ -343,7 +351,8 @@ class App:
         except Exception as ex:
             log(f'convert job failed: {ex}')
         finally:
-            self._convert_busy = False
+            with self._convert_lock:
+                self._convert_busy = False
 
     def _do_convert(self):
         # Hotkey fires on key-down while Alt/Ctrl may still be held. Wait a

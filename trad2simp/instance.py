@@ -80,7 +80,7 @@ def acquire_or_exit():
                 kernel32.CloseHandle(show_event)
                 show_event = None
             else:
-                user32.MessageBoxW(None, f'{config.APP_TITLE}已在运行中', config.APP_TITLE, 0)
+                user32.MessageBoxW(None, f'{config.APP_TITLE} 已在运行中', config.APP_TITLE, 0)
             # os._exit, not sys.exit: interpreter shutdown would join
             # import-time threads and can hang a windowed build, leaving a
             # zombie that keeps the mutex alive and bricks later launches.

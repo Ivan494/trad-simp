@@ -190,7 +190,7 @@ def validate_hotkey(combo):
         raise ValueError('PrintScreen 组合键被系统占用，请换一个')
     mods = [p for p in parts if p in MODIFIER_ORDER]
     if len(parts) == len(mods):
-        raise ValueError('请包含 Ctrl/Alt/Shift 修饰键')
+        raise ValueError('请包含主键')
     if not mods and (len(parts) != 1 or parts[0] not in STANDALONE_KEYS):
         raise ValueError('请使用 Ctrl/Alt + 普通键或 F1-F24')
     if canonical in RESERVED_COMBOS:
@@ -232,10 +232,15 @@ class WinHotkeyPump:
         if self._start_error:
             raise RuntimeError(self._start_error)
 
-    def register(self, mods, vk):
+    def register(self, mods, vk, force=False):
+        """Register (or re-register) the hotkey.
+
+        Returns True when RegisterHotKey was called, False when the same
+        combo is already tracked and force is False (no-op).
+        """
         self.start()
         with self._lock:
-            if self._current == (mods, vk) and self._hwnd:
+            if not force and self._current == (mods, vk) and self._hwnd:
                 return False
         done = threading.Event()
         result = [None]

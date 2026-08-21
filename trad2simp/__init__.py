@@ -1,31 +1,51 @@
 """Traditional ↔ Simplified Chinese selection converter."""
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
-from trad2simp.config import CONFIG_DIR, CONFIG_PATH, RESTART_FLAG, load_config, log, save_config
-from trad2simp.hotkeys import (
-    DEFAULT_HOTKEY, MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN,
-    HotkeyRecorder, WinHotkeyPump, canonical_hotkey, combo_from_vks,
-    hotkey_to_mods_vk, key_to_vk, validate_hotkey,
-)
-from trad2simp.instance import do_restart, restart_flag_state
-from trad2simp.win32 import (
-    inject_named_combo, release_modifiers, suppress_hotkey_side_effects,
-    wait_modifiers_up,
-)
+# Lazy imports keep `from trad2simp.convert import flip_script` free of
+# Windows-only ctypes bindings, and let a second-instance launch take the
+# mutex without paying for tkinter / opencc / pystray.
 
 
 def __getattr__(name):
-    # Lazy: App / app pull in tkinter / opencc / pystray. A second-instance
-    # launch must import this package and take the mutex without that cost.
-    # Defining __getattr__ also disables implicit submodule lookup, so
-    # expose the known submodules here.
     if name in ('app', 'config', 'convert', 'hotkeys', 'instance', 'win32'):
         import importlib
         return importlib.import_module(f'.{name}', __name__)
-    if name == 'App':
-        from trad2simp.app import App
-        return App
+
+    _lazy = {
+        'App': ('.app', 'App'),
+        'CONFIG_DIR': ('.config', 'CONFIG_DIR'),
+        'CONFIG_PATH': ('.config', 'CONFIG_PATH'),
+        'RESTART_FLAG': ('.config', 'RESTART_FLAG'),
+        'load_config': ('.config', 'load_config'),
+        'log': ('.config', 'log'),
+        'save_config': ('.config', 'save_config'),
+        'DEFAULT_HOTKEY': ('.hotkeys', 'DEFAULT_HOTKEY'),
+        'MOD_ALT': ('.hotkeys', 'MOD_ALT'),
+        'MOD_CONTROL': ('.hotkeys', 'MOD_CONTROL'),
+        'MOD_SHIFT': ('.hotkeys', 'MOD_SHIFT'),
+        'MOD_WIN': ('.hotkeys', 'MOD_WIN'),
+        'HotkeyRecorder': ('.hotkeys', 'HotkeyRecorder'),
+        'WinHotkeyPump': ('.hotkeys', 'WinHotkeyPump'),
+        'canonical_hotkey': ('.hotkeys', 'canonical_hotkey'),
+        'combo_from_vks': ('.hotkeys', 'combo_from_vks'),
+        'hotkey_to_mods_vk': ('.hotkeys', 'hotkey_to_mods_vk'),
+        'key_to_vk': ('.hotkeys', 'key_to_vk'),
+        'validate_hotkey': ('.hotkeys', 'validate_hotkey'),
+        'do_restart': ('.instance', 'do_restart'),
+        'restart_flag_state': ('.instance', 'restart_flag_state'),
+        'inject_named_combo': ('.win32', 'inject_named_combo'),
+        'release_modifiers': ('.win32', 'release_modifiers'),
+        'suppress_hotkey_side_effects': ('.win32', 'suppress_hotkey_side_effects'),
+        'wait_modifiers_up': ('.win32', 'wait_modifiers_up'),
+    }
+    if name in _lazy:
+        import importlib
+        mod_name, attr = _lazy[name]
+        mod = importlib.import_module(mod_name, __name__)
+        value = getattr(mod, attr)
+        globals()[name] = value
+        return value
     raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 

@@ -15,7 +15,7 @@ Windows 托盘小工具：选中中文，按全局快捷键，繁体 ↔ 简体�
 1. 启动 `Trad2Simp.exe`，启动后立即开始监听。
 2. 在任意窗口选中中文。
 3. 按 `Alt+\``（或你自己记录的组合键）。
-4. 选中文字替换为另一种字体。
+4. 选中文字替换为另一种写法。
 
 | | |
 |---|---|
@@ -41,6 +41,12 @@ python -m trad2simp
 python test_all.py
 ```
 
+仅校验繁简转换（任意平台）：
+
+```powershell
+python -c "from trad2simp.convert import flip_script; print(flip_script('臺灣'))"
+```
+
 打包单文件 exe：
 
 ```powershell
@@ -49,6 +55,10 @@ python -m PyInstaller --noconfirm Trad2Simp.spec
 ```
 
 生成文件在 `dist\Trad2Simp.exe`。
+
+## 浏览器演示
+
+打开仓库根目录的 `index.html` 可在浏览器里试用同一套繁简互转逻辑（不依赖本机托盘程序）。
 
 ## 原理
 
@@ -67,4 +77,4 @@ MIT
 
 Windows tray app that flips selected Chinese between Traditional and Simplified with a global hotkey (default `Alt+\``). Download **Trad2Simp.exe** from [Releases](https://github.com/Ivan494/trad-simp/releases/latest). First close minimizes to the tray.
 
-See the Chinese sections above for usage, source build, and implementation notes.
+See the Chinese sections above for usage, source build, browser demo (`index.html`), and implementation notes.
