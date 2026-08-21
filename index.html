@@ -29,12 +29,13 @@
     if (simp === text && trad === text) return text;
     if (simp === text) return trad;
     if (trad === text) return simp;
-    let ds = 0, dt = 0;
-    for (let i = 0; i < text.length; i++) {
-      if (i < simp.length && simp[i] !== text[i]) ds++;
-      if (i < trad.length && trad[i] !== text[i]) dt++;
+    function changeCount(src, dst) {
+      const n = Math.min(src.length, dst.length);
+      let diffs = 0;
+      for (let i = 0; i < n; i++) if (src[i] !== dst[i]) diffs++;
+      return diffs + Math.abs(src.length - dst.length);
     }
-    return ds >= dt ? simp : trad;
+    return changeCount(text, simp) >= changeCount(text, trad) ? simp : trad;
   }
   inp.addEventListener('input', () => { out.textContent = flip(inp.value); });
   document.getElementById('copy').addEventListener('click', () => navigator.clipboard.writeText(out.textContent));

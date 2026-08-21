@@ -111,8 +111,10 @@ for bad, why in [
     try:
         v(bad)
         check(f'reject: {why}', False)
-    except ValueError:
+    except ValueError as ex:
         check(f'reject: {why}', True)
+        if why == 'mods only':
+            check('mods only message mentions 主键', '主键' in str(ex), str(ex))
 
 check('combo_from_vks ctrl+a', t2s.combo_from_vks({VK_CONTROL, ord('A')}) == 'ctrl+a')
 check('combo_from_vks alt+` name', 'alt' in (t2s.combo_from_vks({VK_MENU, 0xC0}) or ''))
@@ -385,9 +387,5 @@ check('queue hotkey converts', keys.paste_target == '繁体事件', keys.paste_t
 
 app.quit_all()
 
-# restore user config to alt+`
-t2s.config.CONFIG_DIR = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'Trad2Simp')
-t2s.config.CONFIG_PATH = os.path.join(t2s.config.CONFIG_DIR, 'config.json')
-t2s.config.save_config({'hotkey': 'alt+`', 'tray_hint': True})
-
+# Do not write to the real %APPDATA%\Trad2Simp config — tests use a temp dir.
 print('ALL TESTS PASSED')
