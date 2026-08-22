@@ -5,6 +5,9 @@ import os
 import sys
 import time
 
+if sys.platform != 'win32':
+    raise ImportError('trad2simp.win32 requires Windows (win32)')
+
 # WinDLL(..., use_last_error=True) snapshots GetLastError immediately after
 # each call. windll.kernel32.GetLastError() is not reliable: ctypes may
 # issue other APIs first and clear ERROR_ALREADY_EXISTS, which lets a

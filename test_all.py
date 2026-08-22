@@ -45,11 +45,11 @@ class FakeHotkeyPump:
     def start(self):
         pass
 
-    def register(self, mods, vk):
+    def register(self, mods, vk, force=False):
         if self.fail_next:
             self.fail_next = False
             raise RuntimeError('boom')
-        changed = self.registered != (mods, vk)
+        changed = force or self.registered != (mods, vk)
         self.registered = (mods, vk)
         return changed
 
@@ -285,6 +285,18 @@ check('new hotkey registered', app.hotkey_handle == 'ctrl+alt+k', str(app.hotkey
 mods_k, vk_k = t2s.hotkey_to_mods_vk('ctrl+alt+k')
 check('pump has new combo', app._hotkey_pump.registered == (mods_k, vk_k), str(app._hotkey_pump.registered))
 
+# 8b. failed re-record restores previous hotkey instead of stopping listen
+prev_combo = app.hotkey_var.get()
+prev_reg = app._hotkey_pump.registered
+app._hotkey_pump.fail_next = True
+app.finish_record('ctrl+alt+m')
+check('failed re-record keeps previous combo', app.hotkey_var.get() == prev_combo, app.hotkey_var.get())
+check('failed re-record still listening', app.listening is True)
+check('failed re-record restored pump', app._hotkey_pump.registered == prev_reg, str(app._hotkey_pump.registered))
+
+# 8c. force re-register reports changed even for the same combo
+check('force re-register returns True', app.apply_hotkey(force=True) is True)
+
 # 9. recording start / esc cancel (no WH_KEYBOARD_LL hook)
 app.toggle_record()
 check('recording starts', app.recording is True and app._recorder is not None)
@@ -385,9 +397,5 @@ check('queue hotkey converts', keys.paste_target == '繁体事件', keys.paste_t
 
 app.quit_all()
 
-# restore user config to alt+`
-t2s.config.CONFIG_DIR = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'Trad2Simp')
-t2s.config.CONFIG_PATH = os.path.join(t2s.config.CONFIG_DIR, 'config.json')
-t2s.config.save_config({'hotkey': 'alt+`', 'tray_hint': True})
-
+# Do not touch the real user config under %APPDATA%.
 print('ALL TESTS PASSED')
