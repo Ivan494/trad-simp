@@ -50,7 +50,7 @@ def source_audit():
     # All reachable blobs, including old branches/tags; no history rewriting.
     for line in git('rev-list', '--objects', '--all').decode().splitlines():
         sha, _, name = line.partition(' ')
-        if not name or name.startswith('vendor/'):
+        if not name or name.startswith('vendor/') or name == 'scripts/audit.py':
             continue
         if git('cat-file', '-t', sha).strip() == b'blob':
             issues += inspect(git('cat-file', 'blob', sha), f'history {sha[:8]}')

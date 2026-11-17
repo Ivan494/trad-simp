@@ -20,6 +20,7 @@ jobs:
       - run: python test_all.py
         env:
           PYTHONIOENCODING: utf-8
+      - run: node scripts/test_demo.cjs
       - run: python scripts/audit.py
   convert-linux:
     runs-on: ubuntu-latest
