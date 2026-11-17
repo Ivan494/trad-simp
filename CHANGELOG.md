@@ -1,5 +1,10 @@
 # 更新记录 / Changelog
 
+## 1.1.1
+
+- 关闭窗口直接进入托盘，首次关闭也不弹出提示。
+- Closing the window now goes straight to the tray without a first-close dialog.
+
 ## 1.1.0
 
 - 新增可选开机启动，登录后静默进入托盘。

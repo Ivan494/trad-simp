@@ -340,10 +340,6 @@ class App:
     def hide(self):
         if self.recording:
             self.cancel_record()
-        if not self.cfg.get('tray_hint'):
-            self.cfg['tray_hint'] = True
-            config.save_config(self.cfg)
-            messagebox.showinfo(APP_TITLE, '关闭后进入系统托盘，右键托盘图标可退出。', parent=self.root)
         self.root.withdraw()
 
     def quit_all(self):
