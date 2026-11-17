@@ -96,6 +96,13 @@ class DirectTests(unittest.TestCase):
             self.assertFalse(w.try_wm_paste())
             send.assert_not_called()
 
+    def test_browser_skips_unsupported_wm_copy(self):
+        with patch.object(w, 'focused_hwnd', return_value=123), \
+                patch.object(w, 'window_class_name', return_value='Chrome_RenderWidgetHostHWND'), \
+                patch.object(w, 'send_message_timeout') as send:
+            self.assertFalse(w.try_wm_copy())
+            send.assert_not_called()
+
     def test_readonly_password_and_multiline_controls(self):
         for style in (0x20, 0x800):
             with patch.object(w, 'window_class_name', return_value='EDIT'), \

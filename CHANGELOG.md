@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 1.1.2
+
+- 修复 Ego 等 Chromium 浏览器复制后，剪贴板来源元数据导致转换被跳过的问题；完整保留这些格式。
+- 浏览器直接使用快捷键复制，省去不受支持的窗口消息等待；先检查全部剪贴板格式，再读取内容。
+- 增加转换耗时和跳过原因的运行日志，不记录选中文字、剪贴板内容或个人路径。
+
+English: fix conversion being skipped after Chromium/Ego copies, preserve browser clipboard metadata, remove an unnecessary copy delay, and add content-free timing diagnostics.
+
 ## 1.1.1
 
 - 关闭窗口直接进入托盘，首次关闭也不弹出提示。

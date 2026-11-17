@@ -423,6 +423,9 @@ def try_wm_copy():
     hwnd = focused_hwnd()
     if not hwnd:
         return False
+    cls = window_class_name(hwnd).lower()
+    if cls != 'edit' and not cls.startswith('richedit'):
+        return False
     cancel_ime(hwnd)
     return send_message_timeout(hwnd, WM_COPY, timeout_ms=120)
 

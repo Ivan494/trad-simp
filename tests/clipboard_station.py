@@ -53,12 +53,18 @@ try:
     html = u.RegisterClipboardFormatW('HTML Format')
     rtf = u.RegisterClipboardFormatW('Rich Text Format')
     png = u.RegisterClipboardFormatW('PNG')
+    rfh = u.RegisterClipboardFormatW('Chromium internal source RFH token')
+    source_url = u.RegisterClipboardFormatW('Chromium internal source URL')
+    custom_mime = u.RegisterClipboardFormatW('Chromium Web Custom MIME Data Format')
+    web_mime = u.RegisterClipboardFormatW('Web Custom MIME Data Format')
     # DIB 1x1, file list DROPFILES (UTF-16), text, HTML and RTF all use HGLOBAL.
     dib = struct.pack('<IiiHHIIiiII', 40, 1, 1, 1, 24, 0, 4, 0, 0, 0, 0) + b'\0\0\xff\0'
     drop = struct.pack('<IiiII', 20, 0, 0, 0, 1) + 'C:\\Synthetic\\sample.txt\0\0'.encode('utf-16-le')
     fixture = [(13, '原始😀\0'.encode('utf-16-le')), (8, dib), (15, drop),
                (html, b'<p>synthetic</p>\0'), (rtf, b'{\\rtf1 synthetic}\0'),
-               (png, b'synthetic PNG format payload')]
+               (png, b'synthetic PNG format payload'),
+               (rfh, b'synthetic frame token'), (source_url, b'https://example.test/\0'),
+               (custom_mime, b'synthetic custom MIME data'), (web_mime, b'synthetic web MIME data')]
     with cb.Clipboard() as writer:
         writer._replace(fixture, w.clipboard_sequence())
     with cb.Clipboard() as snapshot:
@@ -81,14 +87,19 @@ try:
 
     unknown = u.RegisterClipboardFormatW('Trad2Simp synthetic unsupported format')
     with cb.Clipboard() as writer:
-        writer._replace([(unknown, b'synthetic\0')], w.clipboard_sequence())
+        writer._replace([(13, 'synthetic\0'.encode('utf-16-le')),
+                         (unknown, b'synthetic\0')], w.clipboard_sequence())
     with cb.Clipboard() as snapshot:
-        try:
-            snapshot.snapshot()
-        except Skipped:
-            pass
-        else:
-            raise AssertionError('Unknown format was not rejected')
+        # Validate the whole format list before triggering delayed rendering of
+        # even a supported format. Unsupported clipboard data must be left alone.
+        with patch.object(cb.u, 'GetClipboardData') as get_data:
+            try:
+                snapshot.snapshot()
+            except Skipped:
+                pass
+            else:
+                raise AssertionError('Unknown format was not rejected')
+            get_data.assert_not_called()
 
     cb.gdi.CreateBitmap.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint, ctypes.c_uint, ctypes.c_void_p]
     cb.gdi.CreateBitmap.restype = ctypes.c_void_p

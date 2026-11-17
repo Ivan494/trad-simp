@@ -325,10 +325,13 @@ class App:
         self._worker.start()
 
     def _convert_job(self, mode, target):
+        started = time.monotonic()
         try:
             status = convert_selection(mode, self._closing.is_set, target)
+            log(f'conversion completed elapsed_ms={round((time.monotonic() - started) * 1000)}')
         except Skipped as ex:
             status = str(ex)
+            log(f'conversion skipped {status} elapsed_ms={round((time.monotonic() - started) * 1000)}')
         except Exception:
             status = '转换未完成，请稍后重试'
             log('conversion failed')

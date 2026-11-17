@@ -26,7 +26,11 @@ gdi.DeleteObject.restype = ctypes.c_int
 MEMORY_FORMATS = {1, 7, 8, 13, 15, 16, 17}  # text, OEM, DIB, Unicode, files, locale, DIBV5
 REGISTERED_FORMATS = {'HTML Format', 'Rich Text Format', 'Rich Text Format Without Objects',
                       'PNG', 'image/png', 'CanIncludeInClipboardHistory',
-                      'CanUploadToCloudClipboard', 'ExcludeClipboardContentFromMonitorProcessing'}
+                      'CanUploadToCloudClipboard', 'ExcludeClipboardContentFromMonitorProcessing',
+                      # Chromium writes these opaque, memory-backed provenance
+                      # records alongside ordinary copied text (including Ego).
+                      'Chromium internal source RFH token', 'Chromium internal source URL',
+                      'Chromium Web Custom MIME Data Format', 'Web Custom MIME Data Format'}
 MAX_BYTES = 64 * 1024 * 1024
 
 
@@ -81,6 +85,10 @@ class Clipboard:
     def snapshot(self):
         with self.opened():
             total, fmt = 0, 0
+            formats = []
+            # Validate every advertised format before requesting any data.
+            # GetClipboardData can synchronously ask another app to render it;
+            # do not do that work if the snapshot will be rejected anyway.
             while True:
                 ctypes.set_last_error(0)
                 fmt = u.EnumClipboardFormats(fmt)
@@ -93,6 +101,8 @@ class Clipboard:
                     u.GetClipboardFormatNameW(fmt, name, len(name))
                     if name.value not in REGISTERED_FORMATS:
                         raise Skipped('剪贴板含无法安全还原的格式，已跳过转换')
+                formats.append(fmt)
+            for fmt in formats:
                 handle = u.GetClipboardData(fmt)
                 if not handle:
                     raise Skipped('无法保存剪贴板，已跳过转换')

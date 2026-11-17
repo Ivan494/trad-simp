@@ -1,8 +1,11 @@
-## 繁简转换 v1.1.1
+## 繁简转换 v1.1.2
 
 下载 **Trad2Simp.exe** 即可使用，无需安装。升级前请从托盘退出旧版本，再替换原 exe；设置会保留。
 
 ### 新增与改进
+- 修复 Ego 等 Chromium 浏览器中的转换回归：安全保留浏览器附带的剪贴板来源元数据，不再误判为不支持的格式。
+- 省去浏览器不支持的复制窗口消息等待；先检查全部剪贴板格式，避免无效读取。
+- 运行日志仅增加转换耗时和固定状态信息，不记录所选文字、剪贴板内容或个人路径。
 - 关闭窗口直接进入托盘，不再弹出提示。
 - 可选开机启动，登录后安静进入托盘；默认关闭。
 - 自动 / 转为简体 / 转为繁体，适合混排文字。
@@ -17,7 +20,9 @@
 
 ## English
 
-Closing the window now goes straight to the tray without any confirmation dialog.
+Fixes a conversion regression with Ego and other Chromium browsers: browser clipboard metadata is now preserved instead of being rejected as unsupported. Removes an unnecessary copy delay and checks all formats before reading clipboard data. Timing diagnostics contain operational status only.
+
+Closing the window still goes straight to the tray without any confirmation dialog.
 
 Portable Windows x64 release with opt-in startup to tray, Auto / To Simplified / To Traditional modes, direct conversion in supported single-line fields, and protected clipboard fallback elsewhere.
 
