@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 1.1.3
+
+- 移除导致界面卡住的开机启动设置及全部启动注册表访问。
+- 保留 v1.1.2 已验证的 Alt + ` 快捷键、Ego/Chromium 剪贴板兼容修复和转换方式。
+- 关闭窗口继续直接进入托盘，再次运行显示已有窗口。
+- 补充旧版启动项的移除说明。
+
+English: remove startup registration, retain the verified hotkey and Chromium clipboard fixes, and document removal of older startup entries.
+
 ## 1.1.2
 
 - 修复 Ego 等 Chromium 浏览器复制后，剪贴板来源元数据导致转换被跳过的问题；完整保留这些格式。

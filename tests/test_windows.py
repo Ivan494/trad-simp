@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 if sys.platform != 'win32':
     raise unittest.SkipTest('Windows integration tests')
 
-from trad2simp import app, config, hotkeys, instance, startup, win32 as w
+from trad2simp import app, config, hotkeys, instance, win32 as w
 from trad2simp import clipboard as cb
 from trad2simp import selection as s
 
@@ -39,43 +39,15 @@ class HotkeyTests(unittest.TestCase):
         self.assertIsNone(hotkeys.combo_from_vks({w.VK_CONTROL}))
 
 
-class StartupTests(unittest.TestCase):
-    def test_quoted_frozen_command(self):
-        with patch.object(sys, 'frozen', True, create=True), patch.object(sys, 'executable', r'C:\Apps With Spaces\Trad2Simp.exe'):
-            self.assertEqual(startup.command(), '"C:\\Apps With Spaces\\Trad2Simp.exe" --startup')
-
-    def test_source_command_independent_of_cwd(self):
-        with patch.object(sys, 'frozen', False, create=True):
-            result = startup.command()
-        self.assertIn(str(Path(__file__).resolve().parents[1] / 'run.py'), result)
-        self.assertTrue(result.endswith('--startup'))
-
-    def test_registry_only_current_user(self):
-        with patch.object(startup, 'winreg') as reg:
-            startup.set_enabled(True)
-            self.assertEqual(reg.CreateKeyEx.call_args.args[0], reg.HKEY_CURRENT_USER)
-            self.assertIn('--startup', reg.SetValueEx.call_args.args[-1])
-            startup.set_enabled(False)
-            reg.DeleteValue.assert_called_once()
-            reg.OpenKey.side_effect = FileNotFoundError
-            self.assertEqual(startup.registered_command(), '')
-
-    def test_registry_errors_not_swallowed(self):
-        with patch.object(startup.winreg, 'CreateKeyEx', side_effect=PermissionError):
-            with self.assertRaises(PermissionError):
-                startup.set_enabled(True)
-
-
 class InstanceTests(unittest.TestCase):
-    def test_duplicate_startup_never_shows_window(self):
-        for silent in (False, True):
-            with patch.object(instance, 'kernel32') as kernel, patch.object(instance, 'last_error', return_value=183), \
-                    patch.object(instance, 'restart_flag_state', return_value=None), \
-                    patch.object(instance.os, '_exit', side_effect=SystemExit):
-                kernel.WaitForSingleObject.return_value = w.WAIT_TIMEOUT
-                with self.assertRaises(SystemExit):
-                    instance.acquire_or_exit(startup=silent)
-                self.assertEqual(kernel.SetEvent.call_count, int(not silent))
+    def test_duplicate_launch_reopens_existing_window(self):
+        with patch.object(instance, 'kernel32') as kernel, patch.object(instance, 'last_error', return_value=183), \
+                patch.object(instance, 'restart_flag_state', return_value=None), \
+                patch.object(instance.os, '_exit', side_effect=SystemExit):
+            kernel.WaitForSingleObject.return_value = w.WAIT_TIMEOUT
+            with self.assertRaises(SystemExit):
+                instance.acquire_or_exit()
+            kernel.SetEvent.assert_called_once()
         instance.show_event = None
 
     def test_failed_mutex_or_wait(self):
@@ -227,8 +199,7 @@ class AppTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         patches = [patch.object(config, 'CONFIG_DIR', self.tmp.name),
                    patch.object(config, 'CONFIG_PATH', os.path.join(self.tmp.name, 'config.json')),
-                   patch.object(startup, 'registered_command', return_value=''),
-                   patch.object(startup, 'set_enabled'), patch.object(app, 'messagebox'),
+                   patch.object(app, 'messagebox'),
                    patch.object(app.pystray.Icon, 'run_detached'), patch.object(app.pystray.Icon, 'stop'),
                    patch.object(hotkeys, 'WinHotkeyPump'), patch.object(instance, 'show_event', None)]
         self.mocks = [p.start() for p in patches]
@@ -236,20 +207,15 @@ class AppTests(unittest.TestCase):
             self.addCleanup(p.stop)
         self.root = tk.Tk()
         self.root.withdraw()
-        self.a = app.App(self.root, startup=True)
+        self.a = app.App(self.root)
         self.addCleanup(self.a.quit_all)
 
-    def test_defaults_mode_and_startup_rollback(self):
+    def test_defaults_and_persistent_mode(self):
         self.assertEqual(self.root.state(), 'withdrawn')
         self.assertEqual(self.a.mode, 'auto')
-        self.assertFalse(self.a.startup_var.get())
         self.a.mode_var.set('转为简体')
         self.a.change_mode()
         self.assertEqual(config.load_config()['mode'], 't2s')
-        self.mocks[3].side_effect = PermissionError
-        self.a.startup_var.set(True)
-        self.a.change_startup()
-        self.assertFalse(self.a.startup_var.get())
 
     def test_recording_and_shutdown_suppress_conversion(self):
         with patch.object(app, 'convert_selection') as convert:
@@ -266,7 +232,7 @@ class AppTests(unittest.TestCase):
             self.root.deiconify()
             self.a.hide()
             self.assertEqual(self.root.state(), 'withdrawn')
-        self.mocks[4].showinfo.assert_not_called()
+        self.mocks[2].showinfo.assert_not_called()
         self.assertNotIn('tray_hint', config.load_config())
 
     def test_hotkey_failure_restores_old_combo(self):

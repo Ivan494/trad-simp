@@ -21,11 +21,14 @@ Windows 便携托盘工具：选中文字，按快捷键，即可原地转换繁
 | 快捷键 | 默认 Alt + `；点击「记录」修改，Esc 取消 |
 | 自动 | 繁体变简体、简体变繁体；混排按改写字符更多的方向转换，相同则转简体 |
 | 转为简体 / 转为繁体 | 固定方向，适合混排文字；下次启动保留 |
-| 开机启动 | 默认关闭；开启后当前用户登录 Windows 时静默进入托盘 |
 
-开机启动不需要管理员权限。Windows 任务管理器也可能禁用启动项；请在「启动应用」中检查。移动或重命名 exe 后，请重新关闭、开启「开机启动」，更新路径。
+已移除开机启动功能，程序不再读写启动注册表。若在 v1.1.0–v1.1.2 中开启过此功能，可在 Windows 终端运行以下命令，仅移除本程序的旧启动项：
 
-升级时先从托盘退出旧版本，再用新 exe 替换原文件；配置会保留。卸载时先关闭「开机启动」，退出并删除 exe；如需清除设置，可另行删除 `%APPDATA%\Trad2Simp`。
+```powershell
+reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v Trad2Simp /f
+```
+
+升级时先从托盘退出旧版本，再用新 exe 替换原文件；配置会保留。卸载时退出并删除 exe；如需清除设置，可另行删除 `%APPDATA%\Trad2Simp`。
 
 ## 转换与剪贴板
 
@@ -54,7 +57,7 @@ python -m venv .venv
 .\.venv\Scripts\python -m trad2simp
 ```
 
-回归测试：`python test_all.py`。测试使用临时配置和模拟启动注册；真实剪贴板测试运行在独立的 Windows 窗口站/桌面，不读写用户当前剪贴板。受限沙箱可能不允许创建测试桌面，此时测试明确失败。
+回归测试：`python test_all.py`。测试使用临时配置；真实剪贴板测试运行在独立的 Windows 窗口站/桌面，不读写用户当前剪贴板。受限沙箱可能不允许创建测试桌面，此时测试明确失败。
 
 ```powershell
 python -m pip install -r requirements-build.txt
@@ -73,7 +76,7 @@ python scripts/release_assets.py
 
 Select Chinese text in an editable field and press **Alt + `**. Choose Auto, To Simplified, or To Traditional. Download the portable Windows x64 executable from [the latest release](https://github.com/Ivan494/trad-simp/releases/latest).
 
-**Start with Windows** is opt-in and launches quietly in the tray. Manual launches show settings. Disable startup before removing the app; after moving the executable, toggle startup off/on to refresh its path.
+Launch the app manually; closing settings hides it to the tray without a dialog. Startup registration has been removed. If you enabled it in v1.1.0–v1.1.2, use the `reg delete` command above to remove only Trad2Simp's old startup entry.
 
 Supported standard single-line Edit controls convert without using the clipboard. Other apps use a guarded clipboard fallback that restores supported formats and avoids overwriting a newer copy. Unsupported formats cause conversion to be skipped. Clipboard history and external managers may still observe fallback copying.
 

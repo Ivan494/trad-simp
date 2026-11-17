@@ -47,7 +47,7 @@ def _mutex_is_free(mutex):
     return result != WAIT_TIMEOUT
 
 
-def acquire_or_exit(startup=False):
+def acquire_or_exit():
     """Own the single-instance mutex or signal the live instance and exit.
 
     Heavy UI imports must run only after this returns, so a second launch is
@@ -86,8 +86,7 @@ def acquire_or_exit(startup=False):
                 os._exit(1)
         else:
             if show_event:
-                if not startup:
-                    kernel32.SetEvent(show_event)
+                kernel32.SetEvent(show_event)
                 kernel32.CloseHandle(show_event)
                 show_event = None
             else:

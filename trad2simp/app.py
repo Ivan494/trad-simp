@@ -10,7 +10,6 @@ import pystray
 from PIL import Image, ImageDraw
 
 from trad2simp import config, hotkeys, instance, win32
-from trad2simp import startup as startup_settings
 from trad2simp.version import __version__
 from trad2simp.selection import capture_target, convert_selection, Skipped
 from trad2simp.config import APP_TITLE, log
@@ -34,7 +33,7 @@ def make_icon():
 
 
 class App:
-    def __init__(self, root, startup=False):
+    def __init__(self, root):
         self.root = root
         self._closing = threading.Event()
         self._worker = None
@@ -60,8 +59,6 @@ class App:
         self._hotkey_pump = hotkeys.WinHotkeyPump(self.on_hotkey)
 
         root.title(f'{APP_TITLE} {__version__}')
-        if startup:
-            root.withdraw()
         root.resizable(False, False)
         frame = ttk.Frame(root, padding=16)
         frame.pack()
@@ -80,19 +77,8 @@ class App:
                              state='readonly', width=14)
         modes.grid(row=1, column=1, columnspan=2, sticky='w', padx=8, pady=(10, 0))
         modes.bind('<<ComboboxSelected>>', self.change_mode)
-        try:
-            registered = bool(startup_settings.registered_command())
-            startup_error = False
-        except OSError:
-            registered, startup_error = False, True
-        self.startup_var = tk.BooleanVar(value=registered)
-        startup_btn = ttk.Checkbutton(frame, text='开机启动（登录后进入托盘）',
-                                     variable=self.startup_var, command=self.change_startup)
-        startup_btn.grid(row=2, column=0, columnspan=3, sticky='w', pady=(10, 0))
-        if startup_error:
-            startup_btn.state(['disabled'])
         self.status = ttk.Label(frame, text='选中文字后按快捷键，繁简互转', foreground='gray')
-        self.status.grid(row=3, column=0, columnspan=3, sticky='w', pady=(10, 0))
+        self.status.grid(row=2, column=0, columnspan=3, sticky='w', pady=(10, 0))
 
         self.tray = pystray.Icon('trad2simp', make_icon(), f'{APP_TITLE} {__version__}', menu=pystray.Menu(
             pystray.MenuItem('显示', lambda *a: self.events.put(('show', None))),
@@ -122,14 +108,6 @@ class App:
             self.cfg['mode'] = previous
             self.mode_var.set(next(k for k, v in self.mode_labels.items() if v == previous))
             self._show_error(APP_TITLE, '设置保存失败，请检查配置目录权限')
-
-    def change_startup(self):
-        desired = self.startup_var.get()
-        try:
-            startup_settings.set_enabled(desired)
-        except OSError:
-            self.startup_var.set(not desired)
-            self._show_error(APP_TITLE, '开机启动设置失败，请检查系统权限')
 
     def _watchdog_loop(self):
         if self._closing.is_set():
@@ -369,7 +347,7 @@ class App:
         self.root.destroy()
 
 
-def run(startup=False):
+def run():
     root = tk.Tk()
-    App(root, startup=startup)
+    App(root)
     root.mainloop()
