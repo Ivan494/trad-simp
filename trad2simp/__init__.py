@@ -1,6 +1,6 @@
 """Traditional ↔ Simplified Chinese selection converter."""
 
-__version__ = '1.0.1'
+from trad2simp.version import __version__
 
 # Lazy imports keep `from trad2simp.convert import flip_script` free of
 # Windows-only ctypes bindings, and let a second-instance launch take the

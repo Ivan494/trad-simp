@@ -1,5 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
+import runpy
+from pathlib import Path
+
+version_file = str(Path(SPECPATH) / 'build' / 'version_info.txt')
+runpy.run_path(str(Path(SPECPATH) / 'scripts' / 'version_info.py'))['write_version_info'](version_file)
 
 datas = []
 binaries = []
@@ -56,4 +61,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['icon.ico'],
+    version=version_file,
 )

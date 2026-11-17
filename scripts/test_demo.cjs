@@ -1,0 +1,18 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const elements = new Map();
+for (const id of ['in', 'out', 'mode', 'copy', 'status']) elements.set(id, {value: id === 'mode' ? 'auto' : '', textContent: '', listeners: {}, addEventListener(event, fn) {this.listeners[event] = fn;}});
+const context = vm.createContext({document: {getElementById: id => elements.get(id)}, navigator: {clipboard: {writeText: async () => {throw Error('denied');}}}});
+vm.runInContext(fs.readFileSync('vendor/opencc-js/full.js', 'utf8'), context);
+const html = fs.readFileSync('index.html', 'utf8');
+assert(!/<script[^>]+https?:/.test(html));
+vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
+elements.get('in').value = '繁體与简体😀';
+elements.get('mode').value = 't2s';
+elements.get('in').listeners.input();
+assert.equal(elements.get('out').textContent, '繁体与简体😀');
+elements.get('mode').value = 's2t';
+elements.get('mode').listeners.change();
+assert.equal(elements.get('out').textContent, '繁體與簡體😀');
+(async () => { await elements.get('copy').listeners.click(); assert(elements.get('status').textContent.includes('手动复制')); console.log('Offline demo: both modes, Unicode, copy-denial feedback, no external scripts PASS'); })();

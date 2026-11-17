@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>繁简转换</title>
-<script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.min.js"></script>
+<script src="vendor/opencc-js/full.js"></script>
 <style>
   body { font-family: system-ui, "Microsoft JhengHei", "PingFang TC", sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
   h1 { font-size: 1.3rem; }
@@ -15,29 +15,45 @@
 </head>
 <body>
 <h1>繁体 ↔ 简体</h1>
-<textarea id="in" placeholder="粘贴或输入中文…"></textarea>
+<p>离线演示：输入内容仅在本页处理，不上传。演示使用地区转换规则，与桌面版可能略有不同。</p>
+<label for="mode">转换方向</label>
+<select id="mode"><option value="auto">自动</option><option value="t2s">转为简体</option><option value="s2t">转为繁体</option></select>
+<textarea aria-label="输入文字" id="in" placeholder="粘贴或输入中文…"></textarea>
 <button id="copy">复制结果</button>
-<output id="out"></output>
+<output id="out" aria-live="polite"></output><p id="status" role="status"></p>
 <script>
   const toSimp = OpenCC.Converter({ from: 'tw', to: 'cn' });
   const toTrad = OpenCC.Converter({ from: 'cn', to: 'tw' });
   const inp = document.getElementById('in');
   const out = document.getElementById('out');
   function flip(text) {
+    const mode = document.getElementById('mode').value;
+    if (mode === 't2s') return toSimp(text);
+    if (mode === 's2t') return toTrad(text);
     const simp = toSimp(text);
     const trad = toTrad(text);
     if (simp === text && trad === text) return text;
     if (simp === text) return trad;
     if (trad === text) return simp;
-    let ds = 0, dt = 0;
-    for (let i = 0; i < text.length; i++) {
-      if (i < simp.length && simp[i] !== text[i]) ds++;
-      if (i < trad.length && trad[i] !== text[i]) dt++;
-    }
+    const changes = (a, b) => {
+      a = Array.from(a); b = Array.from(b);
+      let count = Math.abs(a.length - b.length);
+      for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) count++;
+      return count;
+    };
+    const ds = changes(text, simp), dt = changes(text, trad);
     return ds >= dt ? simp : trad;
   }
   inp.addEventListener('input', () => { out.textContent = flip(inp.value); });
-  document.getElementById('copy').addEventListener('click', () => navigator.clipboard.writeText(out.textContent));
+  document.getElementById('mode').addEventListener('change', () => { out.textContent = flip(inp.value); });
+  document.getElementById('copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(out.textContent);
+      document.getElementById('status').textContent = '已复制';
+    } catch {
+      document.getElementById('status').textContent = '无法自动复制，请选中结果手动复制。';
+    }
+  });
 </script>
 </body>
 </html>

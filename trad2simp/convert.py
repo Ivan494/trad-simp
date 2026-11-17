@@ -20,16 +20,22 @@ def _change_count(src, dst):
     return diffs + abs(len(src) - len(dst))
 
 
-def flip_script(text):
+def convert_text(text, mode='auto'):
     """Flip Traditional ↔ Simplified.
 
     Pure traditional becomes simplified, pure simplified becomes traditional.
     Mixed text follows whichever direction rewrites more characters.
     Unchanged when there is nothing to convert.
     """
+    if mode not in ('auto', 't2s', 's2t'):
+        raise ValueError('Unknown conversion mode')
     if not text:
         return text
     t2s, s2t = _converters()
+    if mode == 't2s':
+        return t2s.convert(text)
+    if mode == 's2t':
+        return s2t.convert(text)
     to_simp = t2s.convert(text)
     to_trad = s2t.convert(text)
     if to_simp == text and to_trad == text:
@@ -41,3 +47,8 @@ def flip_script(text):
     if _change_count(text, to_simp) >= _change_count(text, to_trad):
         return to_simp
     return to_trad
+
+
+def flip_script(text):
+    """Compatibility wrapper for automatic conversion."""
+    return convert_text(text)

@@ -41,9 +41,14 @@ def main():
     if '--selftest' in sys.argv:
         _run_selftest()
     from trad2simp.instance import acquire_or_exit
-    acquire_or_exit()
+    startup = '--startup' in sys.argv
+    mutex = acquire_or_exit(startup=startup)
     from trad2simp.app import run
-    run()
+    try:
+        run(startup=startup)
+    finally:
+        from trad2simp.win32 import kernel32
+        kernel32.CloseHandle(mutex)
 
 
 if __name__ == '__main__':

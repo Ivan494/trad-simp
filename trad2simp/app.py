@@ -10,24 +10,15 @@ import pystray
 from PIL import Image, ImageDraw
 
 from trad2simp import config, hotkeys, instance, win32
+from trad2simp import startup as startup_settings
+from trad2simp.version import __version__
+from trad2simp.selection import convert_selection, Skipped
 from trad2simp.config import APP_TITLE, log
-from trad2simp.convert import flip_script
 from trad2simp.hotkeys import DEFAULT_HOTKEY, validate_hotkey
 from trad2simp.win32 import clear_stale_tcl_env
 
 clear_stale_tcl_env()
 
-CLIPBOARD_RETRIES = 6
-CLIPBOARD_RETRY_DELAY = 0.05
-# Per-attempt wait after each copy method. Total worst-case is still under
-# the old single 1.0s sit-and-hope, but a late first copy is retried.
-COPY_ATTEMPTS = (
-    ('wm_copy', None, 0.08),
-    ('ctrl+c', 'ctrl+c', 0.12),
-    ('ctrl+c', 'ctrl+c', 0.12),
-    ('ctrl+insert', 'ctrl+insert', 0.12),
-)
-PASTE_SETTLE = 0.14
 CONVERT_DEBOUNCE = 0.2
 EVENT_POLL_MS = 50
 
@@ -43,8 +34,11 @@ def make_icon():
 
 
 class App:
-    def __init__(self, root):
+    def __init__(self, root, startup=False):
         self.root = root
+        self._closing = threading.Event()
+        self._worker = None
+        self._watchdog_id = None
         self.cfg = config.load_config()
         hotkey = self.cfg.get('hotkey', DEFAULT_HOTKEY)
         if not isinstance(hotkey, str) or not hotkey.strip():
@@ -65,7 +59,9 @@ class App:
         # Call on_hotkey directly from the pump — do not wait for the Tk poll.
         self._hotkey_pump = hotkeys.WinHotkeyPump(self.on_hotkey)
 
-        root.title(APP_TITLE)
+        root.title(f'{APP_TITLE} {__version__}')
+        if startup:
+            root.withdraw()
         root.resizable(False, False)
         frame = ttk.Frame(root, padding=16)
         frame.pack()
@@ -76,10 +72,29 @@ class App:
         self.record_btn = ttk.Button(frame, text='记录', width=6, command=self.toggle_record)
         self.record_btn.grid(row=0, column=2)
 
+        self.mode = self.cfg.get('mode', 'auto')
+        self.mode_labels = {'自动': 'auto', '转为简体': 't2s', '转为繁体': 's2t'}
+        self.mode_var = tk.StringVar(value=next(k for k, v in self.mode_labels.items() if v == self.mode))
+        ttk.Label(frame, text='转换方向').grid(row=1, column=0, sticky='w', pady=(10, 0))
+        modes = ttk.Combobox(frame, textvariable=self.mode_var, values=list(self.mode_labels),
+                             state='readonly', width=14)
+        modes.grid(row=1, column=1, columnspan=2, sticky='w', padx=8, pady=(10, 0))
+        modes.bind('<<ComboboxSelected>>', self.change_mode)
+        try:
+            registered = bool(startup_settings.registered_command())
+            startup_error = False
+        except OSError:
+            registered, startup_error = False, True
+        self.startup_var = tk.BooleanVar(value=registered)
+        startup_btn = ttk.Checkbutton(frame, text='开机启动（登录后进入托盘）',
+                                     variable=self.startup_var, command=self.change_startup)
+        startup_btn.grid(row=2, column=0, columnspan=3, sticky='w', pady=(10, 0))
+        if startup_error:
+            startup_btn.state(['disabled'])
         self.status = ttk.Label(frame, text='选中文字后按快捷键，繁简互转', foreground='gray')
-        self.status.grid(row=1, column=0, columnspan=3, sticky='w', pady=(10, 0))
+        self.status.grid(row=3, column=0, columnspan=3, sticky='w', pady=(10, 0))
 
-        self.tray = pystray.Icon('trad2simp', make_icon(), APP_TITLE, menu=pystray.Menu(
+        self.tray = pystray.Icon('trad2simp', make_icon(), f'{APP_TITLE} {__version__}', menu=pystray.Menu(
             pystray.MenuItem('显示', lambda *a: self.events.put(('show', None))),
             pystray.MenuItem('退出', lambda *a: self.events.put(('quit', None))),
         ))
@@ -90,34 +105,59 @@ class App:
 
         root.protocol('WM_DELETE_WINDOW', self.hide)
         root.after(EVENT_POLL_MS, self.poll_events)
-        threading.Thread(target=self._watchdog_loop, daemon=True).start()
+        self._watchdog_id = root.after(300000, self._watchdog_loop)
         self.start_listen()
 
+    def change_mode(self, event=None):
+        previous = self.mode
+        self.mode = self.mode_labels[self.mode_var.get()]
+        self.cfg['mode'] = self.mode
+        if not config.save_config(self.cfg):
+            self.mode = previous
+            self.cfg['mode'] = previous
+            self.mode_var.set(next(k for k, v in self.mode_labels.items() if v == previous))
+            messagebox.showerror(APP_TITLE, '设置保存失败，请检查配置目录权限')
+
+    def change_startup(self):
+        desired = self.startup_var.get()
+        try:
+            startup_settings.set_enabled(desired)
+        except OSError:
+            self.startup_var.set(not desired)
+            messagebox.showerror(APP_TITLE, '开机启动设置失败，请检查系统权限')
+
     def _watchdog_loop(self):
-        while True:
-            time.sleep(300)
-            if not self.listening:
-                continue
+        if self._closing.is_set():
+            return
+        if not self.recording:
             try:
-                # force=True: RegisterHotKey can be lost while our handle
-                # still thinks the combo is live; a no-op check would miss it.
                 self.apply_hotkey(force=True)
-            except Exception as ex:
-                log(f'watchdog: re-register failed: {ex}')
+                self.listening = True
+                self.refresh_status()
+            except Exception:
+                self.listening = False
+                self.refresh_status()
+                log('hotkey recovery failed')
+        self._watchdog_id = self.root.after(300000, self._watchdog_loop)
 
     def _do_restart(self):
         instance.do_restart()
 
     def _wait_show_signal(self):
-        if not instance.show_event:
+        handle = instance.show_event
+        if not handle:
             return
-        # Loop: each second-instance launch SetEvent's once; a single wait
-        # would leave later launches unable to raise the window.
-        while True:
-            win32.kernel32.WaitForSingleObject(instance.show_event, 0xFFFFFFFF)
-            self.events.put(('show', None))
+        while not self._closing.is_set():
+            result = win32.kernel32.WaitForSingleObject(handle, 250)
+            if result == win32.WAIT_OBJECT_0:
+                self.events.put(('show', None))
+            elif result != win32.WAIT_TIMEOUT:
+                log('show event wait failed')
+                return
 
     def poll_events(self):
+        if self._closing.is_set():
+            return
         try:
             while True:
                 kind, payload = self.events.get_nowait()
@@ -131,6 +171,8 @@ class App:
                     self.root.deiconify()
                     self.root.lift()
                     self.root.focus_force()
+                elif kind == 'status':
+                    self.status.config(text=payload, foreground='gray')
                 elif kind == 'quit':
                     self.quit_all()
                     return
@@ -148,6 +190,9 @@ class App:
         if self.recording:
             self.cancel_record()
             return
+        if self._convert_busy:
+            self.status.config(text='转换进行中，请稍后记录快捷键')
+            return
         self.record_token += 1
         token = self.record_token
         self.recording = True
@@ -157,13 +202,11 @@ class App:
         def on_combo(combo):
             if token != self.record_token or not self.recording:
                 return
-            self.recording = False
             self.events.put(('recorded', (combo, token)))
 
         def on_cancel():
             if token != self.record_token:
                 return
-            self.recording = False
             self.events.put(('record_cancel', None))
 
         self._recorder = hotkeys.HotkeyRecorder(on_combo, on_cancel)
@@ -179,7 +222,7 @@ class App:
             combo = validate_hotkey(combo)
         except ValueError as ex:
             self.status.config(text=str(ex), foreground='red')
-            messagebox.showerror('无效快捷键', str(ex))
+            messagebox.showerror('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
             return
         previous = self.hotkey_var.get()
         self.hotkey_var.set(combo)
@@ -190,14 +233,17 @@ class App:
             except Exception as ex:
                 self.hotkey_var.set(previous)
                 self.cfg['hotkey'] = previous
-                messagebox.showerror('无效快捷键', str(ex))
+                messagebox.showerror('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
                 try:
                     self.apply_hotkey()
                 except Exception as ex2:
                     log(f'restore previous hotkey failed: {ex2}')
                     self.stop_listen()
                 return
-        config.save_config(self.cfg)
+        if not self.listening:
+            self.start_listen()
+        if not config.save_config(self.cfg):
+            messagebox.showerror(APP_TITLE, '快捷键已生效，但设置保存失败')
         self.refresh_status()
 
     def cancel_record(self):
@@ -212,13 +258,13 @@ class App:
         try:
             hotkey = validate_hotkey(hotkey)
         except ValueError as ex:
-            messagebox.showerror('无效快捷键', str(ex))
+            messagebox.showerror('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
             return
         self.hotkey_var.set(hotkey)
         try:
             self.apply_hotkey()
         except Exception as ex:
-            messagebox.showerror('无效快捷键', str(ex))
+            messagebox.showerror('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
             try:
                 self._hotkey_pump.unregister()
             except Exception:
@@ -258,164 +304,32 @@ class App:
             self.status.config(text='快捷键未就绪')
         self.status.config(foreground='gray')
 
-    def _clipboard_sequence(self):
-        return win32.clipboard_sequence()
-
-    def _clipboard_has_text(self):
-        return win32.clipboard_has_text()
-
-    def _read_clipboard(self):
-        last_error = None
-        for _ in range(CLIPBOARD_RETRIES):
-            try:
-                return win32.read_clipboard()
-            except Exception as ex:
-                last_error = ex
-                time.sleep(CLIPBOARD_RETRY_DELAY)
-        raise last_error
-
-    def _write_clipboard(self, text):
-        last_error = None
-        for _ in range(CLIPBOARD_RETRIES):
-            try:
-                win32.write_clipboard(text)
-                return
-            except Exception as ex:
-                last_error = ex
-                time.sleep(CLIPBOARD_RETRY_DELAY)
-        raise last_error
-
-    def _selection_copied(self, before_sequence, timeout):
-        if before_sequence is None:
-            time.sleep(min(timeout, 0.08))
-            return True
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            if self._clipboard_sequence() != before_sequence:
-                return True
-            time.sleep(0.01)
-        return False
-
-    def _try_wm_copy(self):
-        return win32.try_wm_copy()
-
-    def _try_wm_paste(self):
-        return win32.try_wm_paste()
-
-    def _inject(self, combo):
-        return win32.inject_named_combo(combo)
-
-    def _copy_selection(self, before_sequence):
-        """Copy the current selection. Retries internally so the user does not
-        have to press the hotkey a second time when the first Ctrl+C is eaten
-        by an Alt-menu or IME."""
-        for name, combo, wait in COPY_ATTEMPTS:
-            try:
-                if combo is None:
-                    if not self._try_wm_copy():
-                        continue
-                else:
-                    self._inject(combo)
-            except Exception as ex:
-                log(f'copy via {name} failed: {ex}')
-                continue
-            if self._selection_copied(before_sequence, wait):
-                log(f'copied via {name}')
-                return True
-        return False
-
-    def _restore_old_text(self, old, old_has_text):
-        if not old_has_text:
-            return
-        try:
-            self._write_clipboard(old)
-        except Exception as ex:
-            log(f'restore clipboard failed: {ex}')
-
     def on_hotkey(self):
-        """Debounce and kick conversion off the UI / message-pump threads."""
+        """The message pump never reads Tk objects or performs conversion."""
         with self._convert_lock:
-            now = time.time()
-            if now - self.last_convert < CONVERT_DEBOUNCE:
+            now = time.monotonic()
+            if self.recording or not self.listening or self._closing.is_set():
                 return
-            if self._convert_busy:
+            if self._convert_busy or now - self.last_convert < CONVERT_DEBOUNCE:
                 return
             self.last_convert = now
             self._convert_busy = True
-        log('trigger')
-        threading.Thread(target=self._convert_job, daemon=True).start()
+            mode = self.mode
+        self._worker = threading.Thread(target=self._convert_job, args=(mode,), daemon=True)
+        self._worker.start()
 
-    def _convert_job(self):
+    def _convert_job(self, mode):
         try:
-            self._do_convert()
-        except Exception as ex:
-            log(f'convert job failed: {ex}')
+            status = convert_selection(mode, self._closing.is_set)
+        except Skipped as ex:
+            status = str(ex)
+        except Exception:
+            status = '转换未完成，请稍后重试'
+            log('conversion failed')
         finally:
             with self._convert_lock:
                 self._convert_busy = False
-
-    def _do_convert(self):
-        # Hotkey fires on key-down while Alt/Ctrl may still be held. Wait a
-        # short beat (then force key-ups) so Ctrl+C is plain copy.
-        try:
-            win32.wait_modifiers_up()
-        except Exception as ex:
-            log(f'wait modifiers failed: {ex}')
-            try:
-                win32.release_modifiers()
-            except Exception:
-                pass
-            time.sleep(0.03)
-        try:
-            old = self._read_clipboard()
-        except Exception as ex:
-            log(f'read clipboard failed: {ex}')
-            return
-        old_has_text = self._clipboard_has_text()
-        before = self._clipboard_sequence()
-        if not self._copy_selection(before):
-            log('skip: no selection copied')
-            return
-        try:
-            sel = self._read_clipboard()
-        except Exception as ex:
-            log(f'read selection failed: {ex}')
-            self._restore_old_text(old, old_has_text)
-            return
-        if not sel or not self._clipboard_has_text():
-            log('skip: selection has no text')
-            self._restore_old_text(old, old_has_text)
-            return
-        try:
-            converted = flip_script(sel)
-        except Exception as ex:
-            log(f'convert failed: {ex}')
-            self._restore_old_text(old, old_has_text)
-            return
-        if converted == sel:
-            log('skip: nothing to convert')
-            self._restore_old_text(old, old_has_text)
-            return
-        try:
-            self._write_clipboard(converted)
-            time.sleep(0.05)
-            pasted = False
-            try:
-                pasted = self._try_wm_paste()
-            except Exception as ex:
-                log(f'wm_paste failed: {ex}')
-            if not pasted:
-                try:
-                    win32.release_modifiers()
-                except Exception:
-                    pass
-                self._inject('ctrl+v')
-            time.sleep(PASTE_SETTLE)
-            log(f'converted {len(sel)} -> {len(converted)} chars')
-        except Exception as ex:
-            log(f'paste failed: {ex}')
-        finally:
-            self._restore_old_text(old, old_has_text)
+        self.events.put(('status', status))
 
     def hide(self):
         if self.recording:
@@ -427,18 +341,30 @@ class App:
             messagebox.showinfo(APP_TITLE, '已最小化到系统托盘，右键托盘图标可退出。')
 
     def quit_all(self):
+        if self._closing.is_set():
+            return
+        self._closing.set()
         if self.recording:
             self.cancel_record()
+        if self._watchdog_id:
+            self.root.after_cancel(self._watchdog_id)
         self.stop_listen()
         try:
             self._hotkey_pump.stop()
         except Exception:
-            pass
+            log('hotkey shutdown failed')
+        # Keep the event loop alive until the worker has restored its clipboard.
+        self._finish_quit()
+
+    def _finish_quit(self):
+        if self._worker and self._worker.is_alive():
+            self.root.after(50, self._finish_quit)
+            return
         self.tray.stop()
         self.root.destroy()
 
 
-def run():
+def run(startup=False):
     root = tk.Tk()
-    App(root)
+    App(root, startup=startup)
     root.mainloop()

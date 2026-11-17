@@ -1,45 +1,32 @@
 name: CI
-
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Run tests
-        run: python test_all.py
+      - run: pip install -r requirements.txt
+      - run: python test_all.py
         env:
           PYTHONIOENCODING: utf-8
-
+      - run: python scripts/audit.py
   convert-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
-      - name: Install OpenCC
-        run: pip install 'opencc>=1.1.7'
-      - name: Convert module imports without Windows
-        run: |
-          python - <<'PY'
-          from trad2simp.convert import flip_script
-          import trad2simp
-          assert trad2simp.__version__
-          trad = '今天是臺灣，我們喝咖啡。'
-          simp = '今天是台湾，我们喝咖啡。'
-          assert flip_script(trad) == simp
-          assert flip_script(simp) == trad
-          assert flip_script('hello') == 'hello'
-          print('convert-linux OK', trad2simp.__version__)
-          PY
+      - run: pip install opencc==1.4.2
+      - run: python -m unittest discover -s tests -p test_core.py -v

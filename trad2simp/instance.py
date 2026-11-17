@@ -29,7 +29,7 @@ def restart_flag_state():
         with open(path, encoding='utf-8') as f:
             raw = f.read().strip()
         try:
-            fresh = time.time() - float(raw) <= config.RESTART_FLAG_MAX_AGE
+            fresh = 0 <= time.time() - float(raw) <= config.RESTART_FLAG_MAX_AGE
         except ValueError:
             fresh = False
         os.remove(path)
@@ -41,10 +41,13 @@ def restart_flag_state():
 def _mutex_is_free(mutex):
     """Wait 0 on the mutex. 0/ABANDONED -> no live owner (we may take over);
     TIMEOUT -> a live instance owns it."""
-    return kernel32.WaitForSingleObject(mutex, 0) != WAIT_TIMEOUT
+    result = kernel32.WaitForSingleObject(mutex, 0)
+    if result not in (WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT):
+        raise OSError('Instance check failed')
+    return result != WAIT_TIMEOUT
 
 
-def acquire_or_exit():
+def acquire_or_exit(startup=False):
     """Own the single-instance mutex or signal the live instance and exit.
 
     Heavy UI imports must run only after this returns, so a second launch is
@@ -58,8 +61,13 @@ def acquire_or_exit():
     # behind an abandoned mutex.
     mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
     already_running = last_error() == 183
+    if not mutex:
+        raise OSError('Cannot create instance mutex')
     restart_state = restart_flag_state()
     show_event = kernel32.CreateEventW(None, False, False, SHOW_EVENT_NAME)
+    if not show_event:
+        kernel32.CloseHandle(mutex)
+        raise OSError('Cannot create instance event')
 
     if already_running and not _mutex_is_free(mutex):
         if restart_state == 'fresh':
@@ -71,12 +79,15 @@ def acquire_or_exit():
                 if wait_result in (WAIT_OBJECT_0, WAIT_ABANDONED):
                     acquired = True
                     break
+                if wait_result != WAIT_TIMEOUT:
+                    raise OSError('Instance wait failed')
                 time.sleep(0.1)
             if not acquired:
                 os._exit(1)
         else:
             if show_event:
-                kernel32.SetEvent(show_event)
+                if not startup:
+                    kernel32.SetEvent(show_event)
                 kernel32.CloseHandle(show_event)
                 show_event = None
             else:
@@ -99,7 +110,7 @@ def do_restart():
             else:
                 proc = subprocess.Popen([sys.executable, '-m', 'trad2simp'])
         except Exception as ex:
-            config.log(f'watchdog restart spawn failed: {ex}')
+            config.log('watchdog restart spawn failed')
             continue
         for _ in range(100):
             if proc.poll() is not None:

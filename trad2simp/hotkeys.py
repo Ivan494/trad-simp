@@ -51,13 +51,15 @@ MODIFIER_ALIASES = {
     'left windows': 'win',
     'right windows': 'win',
     'windows': 'win',
+    'control': 'ctrl', 'return': 'enter', 'escape': 'esc',
+    'del': 'delete', 'ins': 'insert',
 }
 STANDALONE_KEYS = {f'f{i}' for i in range(1, 25)}
 RESERVED_COMBOS = {
     'alt+tab', 'alt+f4', 'ctrl+esc', 'ctrl+alt+del', 'ctrl+alt+delete', 'ctrl+shift+esc',
     # the app itself injects these during conversion; using them as the hotkey
     # would suppress the user's own copy/paste and deadlock the conversion loop
-    'ctrl+c', 'ctrl+v', 'ctrl+x',
+    'ctrl+c', 'ctrl+v', 'ctrl+x', 'ctrl+insert', 'shift+insert', 'shift+delete',
 }
 
 _MODIFIER_VK_TO_NAME = {
