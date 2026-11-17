@@ -89,6 +89,24 @@ class InstanceTests(unittest.TestCase):
 
 
 class DirectTests(unittest.TestCase):
+    def test_custom_text_widgets_use_keyboard_paste(self):
+        with patch.object(w, 'focused_hwnd', return_value=123), \
+                patch.object(w, 'window_class_name', return_value='TkText'), \
+                patch.object(w, 'send_message_timeout') as send:
+            self.assertFalse(w.try_wm_paste())
+            send.assert_not_called()
+
+    def test_readonly_password_and_multiline_controls(self):
+        for style in (0x20, 0x800):
+            with patch.object(w, 'window_class_name', return_value='EDIT'), \
+                    patch.object(w.user32, 'GetWindowLongW', return_value=style):
+                with self.assertRaises(s.Skipped):
+                    s.direct_selection((1, 2))
+        with patch.object(w, 'window_class_name', return_value='EDIT'), \
+                patch.object(w.user32, 'GetWindowLongW', return_value=4), \
+                patch.object(w.user32, 'IsWindowUnicode', return_value=True):
+            self.assertIsNone(s.direct_selection((1, 2)))
+
     def test_direct_never_uses_clipboard(self):
         with patch.object(s, 'capture_target', return_value=(1, 2)), \
                 patch.object(w, 'wait_modifiers_up'), \

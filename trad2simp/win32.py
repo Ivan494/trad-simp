@@ -432,7 +432,9 @@ def try_wm_paste():
     if not hwnd:
         return False
     cls = window_class_name(hwnd).lower()
-    if 'edit' not in cls and 'text' not in cls:
+    # Delivery success does not mean a custom "Text" widget handled WM_PASTE.
+    # Restrict this shortcut to Windows controls with documented support.
+    if cls != 'edit' and not cls.startswith('richedit'):
         return False
     return send_message_timeout(hwnd, WM_PASTE, timeout_ms=120)
 

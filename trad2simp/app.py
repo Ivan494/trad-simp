@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 from trad2simp import config, hotkeys, instance, win32
 from trad2simp import startup as startup_settings
 from trad2simp.version import __version__
-from trad2simp.selection import convert_selection, Skipped
+from trad2simp.selection import capture_target, convert_selection, Skipped
 from trad2simp.config import APP_TITLE, log
 from trad2simp.hotkeys import DEFAULT_HOTKEY, validate_hotkey
 from trad2simp.win32 import clear_stale_tcl_env
@@ -315,12 +315,13 @@ class App:
             self.last_convert = now
             self._convert_busy = True
             mode = self.mode
-        self._worker = threading.Thread(target=self._convert_job, args=(mode,), daemon=True)
+        target = capture_target()
+        self._worker = threading.Thread(target=self._convert_job, args=(mode, target), daemon=True)
         self._worker.start()
 
-    def _convert_job(self, mode):
+    def _convert_job(self, mode, target):
         try:
-            status = convert_selection(mode, self._closing.is_set)
+            status = convert_selection(mode, self._closing.is_set, target)
         except Skipped as ex:
             status = str(ex)
         except Exception:

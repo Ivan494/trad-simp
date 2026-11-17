@@ -35,12 +35,14 @@ def direct_selection(target):
     WM_USER messages cannot safely be sent into another process.
     """
     hwnd = target[1]
-    if w.window_class_name(hwnd).lower() != 'edit' or not w.user32.IsWindowUnicode(hwnd):
+    cls = w.window_class_name(hwnd).lower()
+    if cls != 'edit' and not cls.startswith('richedit'):
         return None
     style = w.user32.GetWindowLongW(hwnd, -16)
     if style & (0x20 | 0x800):  # ES_PASSWORD | ES_READONLY
         raise Skipped('密码或只读输入框不支持转换')
-    if style & 0x4:  # Legacy multiline Edit loses deleted text in EM_REPLACESEL undo.
+    if cls != 'edit' or not w.user32.IsWindowUnicode(hwnd) or style & 0x4:
+        # Legacy multiline Edit loses deleted text in EM_REPLACESEL undo.
         return None
     start, end = ctypes.c_uint(), ctypes.c_uint()
     message(hwnd, 0xB0, ctypes.addressof(start), ctypes.addressof(end))  # EM_GETSEL
@@ -55,8 +57,8 @@ def direct_selection(target):
     return start.value, end.value, selected
 
 
-def convert_selection(mode, cancelled=lambda: False):
-    target = capture_target()
+def convert_selection(mode, cancelled=lambda: False, target=None):
+    target = capture_target() if target is None else target
     require_target(target, cancelled)
     w.wait_modifiers_up()
     require_target(target, cancelled)
