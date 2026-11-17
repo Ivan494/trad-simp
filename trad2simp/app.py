@@ -108,6 +108,11 @@ class App:
         self._watchdog_id = root.after(300000, self._watchdog_loop)
         self.start_listen()
 
+    def _show_error(self, title, text):
+        self.root.deiconify()
+        self.root.lift()
+        messagebox.showerror(title, text, parent=self.root)
+
     def change_mode(self, event=None):
         previous = self.mode
         self.mode = self.mode_labels[self.mode_var.get()]
@@ -116,7 +121,7 @@ class App:
             self.mode = previous
             self.cfg['mode'] = previous
             self.mode_var.set(next(k for k, v in self.mode_labels.items() if v == previous))
-            messagebox.showerror(APP_TITLE, '设置保存失败，请检查配置目录权限')
+            self._show_error(APP_TITLE, '设置保存失败，请检查配置目录权限')
 
     def change_startup(self):
         desired = self.startup_var.get()
@@ -124,7 +129,7 @@ class App:
             startup_settings.set_enabled(desired)
         except OSError:
             self.startup_var.set(not desired)
-            messagebox.showerror(APP_TITLE, '开机启动设置失败，请检查系统权限')
+            self._show_error(APP_TITLE, '开机启动设置失败，请检查系统权限')
 
     def _watchdog_loop(self):
         if self._closing.is_set():
@@ -222,7 +227,7 @@ class App:
             combo = validate_hotkey(combo)
         except ValueError as ex:
             self.status.config(text=str(ex), foreground='red')
-            messagebox.showerror('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
+            self._show_error('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
             return
         previous = self.hotkey_var.get()
         self.hotkey_var.set(combo)
@@ -233,7 +238,7 @@ class App:
             except Exception as ex:
                 self.hotkey_var.set(previous)
                 self.cfg['hotkey'] = previous
-                messagebox.showerror('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
+                self._show_error('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
                 try:
                     self.apply_hotkey()
                 except Exception as ex2:
@@ -243,7 +248,7 @@ class App:
         if not self.listening:
             self.start_listen()
         if not config.save_config(self.cfg):
-            messagebox.showerror(APP_TITLE, '快捷键已生效，但设置保存失败')
+            self._show_error(APP_TITLE, '快捷键已生效，但设置保存失败')
         self.refresh_status()
 
     def cancel_record(self):
@@ -258,13 +263,13 @@ class App:
         try:
             hotkey = validate_hotkey(hotkey)
         except ValueError as ex:
-            messagebox.showerror('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
+            self._show_error('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
             return
         self.hotkey_var.set(hotkey)
         try:
             self.apply_hotkey()
         except Exception as ex:
-            messagebox.showerror('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
+            self._show_error('无效快捷键', '快捷键无效或被占用，请选择其他组合键')
             try:
                 self._hotkey_pump.unregister()
             except Exception:
@@ -335,11 +340,11 @@ class App:
     def hide(self):
         if self.recording:
             self.cancel_record()
-        self.root.withdraw()
         if not self.cfg.get('tray_hint'):
             self.cfg['tray_hint'] = True
             config.save_config(self.cfg)
-            messagebox.showinfo(APP_TITLE, '已最小化到系统托盘，右键托盘图标可退出。')
+            messagebox.showinfo(APP_TITLE, '关闭后进入系统托盘，右键托盘图标可退出。', parent=self.root)
+        self.root.withdraw()
 
     def quit_all(self):
         if self._closing.is_set():

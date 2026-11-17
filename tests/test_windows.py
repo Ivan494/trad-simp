@@ -254,6 +254,15 @@ class AppTests(unittest.TestCase):
             self.a.on_hotkey()
             convert.assert_not_called()
 
+    def test_first_close_hint_precedes_withdraw(self):
+        self.root.deiconify()
+        def check_visible(*args, **kwargs):
+            self.assertEqual(self.root.state(), 'normal')
+        self.mocks[4].showinfo.side_effect = check_visible
+        self.a.hide()
+        self.assertEqual(self.root.state(), 'withdrawn')
+        self.assertTrue(config.load_config()['tray_hint'])
+
     def test_hotkey_failure_restores_old_combo(self):
         self.a._hotkey_pump.register.side_effect = [RuntimeError(), True]
         previous = self.a.hotkey_var.get()
